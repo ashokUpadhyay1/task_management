@@ -1,28 +1,30 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:get/get.dart';
 import 'package:hive_flutter/hive_flutter.dart';
-import 'services/preference_service.dart';
-import 'services/task_database.dart';
+import 'package:task_management_app/notification_service.dart';
+import 'controllers/task_controller.dart';
+import 'models/task_model.dart';
 import 'views/home_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Hive.initFlutter();
-  await TaskDatabase.instance.database;
+  Hive.registerAdapter(TaskAdapter());
+  await Hive.openBox('tasks');
+  await Hive.openBox('preferences');
 
-  runApp(ProviderScope(child: MyApp()));
+  await NotificationService().initialize();
+  Get.put(TaskController());
+  runApp(MyApp());
 }
 
-class MyApp extends ConsumerWidget {
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final theme = ref.watch(preferenceServiceProvider);
+class MyApp extends StatelessWidget {
+  const MyApp({super.key});
 
-    return MaterialApp(
+  @override
+  Widget build(BuildContext context) {
+    return GetMaterialApp(
       title: 'Task Management App',
-      themeMode: theme == 'dark' ? ThemeMode.dark : ThemeMode.light,
-      theme: ThemeData.light(),
-      darkTheme: ThemeData.dark(),
       home: HomeScreen(),
       debugShowCheckedModeBanner: false,
     );

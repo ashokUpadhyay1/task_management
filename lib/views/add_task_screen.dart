@@ -1,15 +1,16 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:get/get.dart';
 import 'package:intl/intl.dart';
+import '../controllers/task_controller.dart';
 import '../models/task_model.dart';
-import '../view_models/task_provider.dart';
 
 class AddTaskScreen extends StatefulWidget {
   final Task? task;
 
-  const AddTaskScreen({Key? key, this.task}) : super(key: key);
+  const AddTaskScreen({super.key, this.task});
 
   @override
+  // ignore: library_private_types_in_public_api
   _AddTaskScreenState createState() => _AddTaskScreenState();
 }
 
@@ -19,6 +20,9 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
   late TextEditingController _descriptionController;
   DateTime? _dueDate;
   bool _isCompleted = false;
+  final TaskController _taskController = Get.find();
+  DateTime? _reminderDate;
+  TimeOfDay? _reminderTime;
 
   @override
   void initState() {
@@ -28,6 +32,7 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
         TextEditingController(text: widget.task?.description ?? '');
     _isCompleted = widget.task?.isCompleted ?? false;
     _dueDate = widget.task?.date;
+    _reminderDate = widget.task?.reminderDate;
   }
 
   @override
@@ -36,6 +41,7 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
     _descriptionController.dispose();
     super.dispose();
   }
+
   Future<void> _pickDueDate() async {
     DateTime? pickedDate = await showDatePicker(
       context: context,
@@ -48,6 +54,35 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
       setState(() {
         _dueDate = pickedDate;
       });
+    }
+  }
+
+  Future<void> _pickReminderDateTime() async {
+    final date = await showDatePicker(
+      context: context,
+      initialDate: _reminderDate ?? DateTime.now(),
+      firstDate: DateTime.now(),
+      lastDate: DateTime(2100),
+    );
+
+    if (date != null) {
+      final time = await showTimePicker(
+        context: context,
+        initialTime: _reminderTime ?? TimeOfDay.now(),
+      );
+
+      if (time != null) {
+        setState(() {
+          _reminderDate = DateTime(
+            date.year,
+            date.month,
+            date.day,
+            time.hour,
+            time.minute,
+          );
+          _reminderTime = time;
+        });
+      }
     }
   }
 
@@ -71,8 +106,6 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
               TextFormField(
                 controller: _descriptionController,
                 decoration: InputDecoration(labelText: 'Description'),
-                validator: (value) =>
-                    value!.isEmpty ? 'Please enter a description' : null,
               ),
               SizedBox(height: 16),
               TextFormField(
@@ -88,7 +121,23 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
                 ),
                 onTap: _pickDueDate,
               ),
-
+              ListTile(
+                title: Text(_reminderDate == null
+                    ? 'Set Reminder'
+                    : 'Reminder: ${DateFormat('yyyy-MM-dd HH:mm').format(_reminderDate!)}'),
+                trailing: Icon(Icons.alarm),
+                onTap: _pickReminderDateTime,
+              ),
+              if (_reminderDate != null)
+                TextButton(
+                  onPressed: () {
+                    setState(() {
+                      _reminderDate = null;
+                      _reminderTime = null;
+                    });
+                  },
+                  child: Text('Clear Reminder'),
+                ),
               CheckboxListTile(
                 title: Text('Completed'),
                 value: _isCompleted,
@@ -99,35 +148,27 @@ class _AddTaskScreenState extends State<AddTaskScreen> {
                 },
               ),
               SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: () {
+                  if (_formKey.currentState!.validate() && _dueDate != null) {
+                    final task = Task(
+                        id: widget.task?.id,
+                        title: _titleController.text,
+                        description: _descriptionController.text,
+                        isCompleted: _isCompleted,
+                        date: _dueDate!,
+                        reminderDate: _reminderDate);
 
-              Consumer(
-                builder: (context, ref, child) {
-                  final taskNotifier = ref.read(taskProvider.notifier);
+                    if (widget.task == null) {
+                      _taskController.addTask(task);
+                    } else {
+                      _taskController.updateTask(task);
+                    }
 
-                  return ElevatedButton(
-                    onPressed: () {
-                      if (_formKey.currentState!.validate()) {
-                        final task = Task(
-                          id: widget.task?.id,
-                          title: _titleController.text,
-                          description: _descriptionController.text,
-                          isCompleted: _isCompleted,
-                          date: _dueDate ?? DateTime.now(),
-                        );
-
-                        if (widget.task == null) {
-                          taskNotifier.addTask(task);
-                        } else {
-                          taskNotifier.updateTask(task);
-                        }
-
-                        Navigator.pop(context);
-                      }
-                    },
-                    child:
-                        Text(widget.task == null ? 'Add Task' : 'Update Task'),
-                  );
+                    Get.back();
+                  }
                 },
+                child: Text(widget.task == null ? 'Add Task' : 'Update Task'),
               ),
             ],
           ),
